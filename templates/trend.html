@@ -1,49 +1,64 @@
 {% extends "base.html" %}
-{% block title %}연도별 추이{% endblock %}
-{% block subtitle %}{{ years[0] }}년부터 {{ years[-1] }}년까지 유형별 발생건수 추이 (stats 컬렉션).{% endblock %}
+{% block title %}기간별 추이{% endblock %}
+{% block subtitle %}최근 {{ days }}일 동안 수집된 기사를 날짜별·유형별로 집계했습니다 (sort_date 기준).{% endblock %}
 
 {% block content %}
 <section class="panel">
-  <h2>📈 연도별 추이 (전체 유형)</h2>
+  <div class="panel-head">
+    <h2>📈 일별 기사 수 (최근 {{ days }}일)</h2>
+    <div class="filter-chips">
+      {% for d in [7, 14, 30, 60, 90] %}
+      <a href="{{ url_for('trend', days=d) }}" class="chip {% if d == days %}active{% endif %}">{{ d }}일</a>
+      {% endfor %}
+    </div>
+  </div>
+  {% if series %}
   <canvas id="lineChart" height="110"></canvas>
+  {% else %}
+  <p class="empty">해당 기간에 수집된 기사가 없습니다.</p>
+  {% endif %}
 </section>
 
 <section class="panel">
-  <h2>📋 연도별 발생건수 표</h2>
-  <table class="table">
-    <thead>
-      <tr><th>유형</th>{% for y in years %}<th class="right">{{ y }}</th>{% endfor %}<th class="right">누적 증가율</th></tr>
-    </thead>
-    <tbody>
-      {% for s in series %}
-      <tr>
-        <td><span class="dot" style="background: {{ s.color }}"></span>{{ s.name }}</td>
-        {% for v in s.data %}<td class="right">{{ v | comma }}</td>{% endfor %}
-        <td class="right up">{% if s.data[0] %}↑ {{ ((s.data[-1] - s.data[0]) / s.data[0] * 100) | round(1) }}%{% else %}-{% endif %}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-    <tfoot>
-      <tr><th>합계</th>{% for t in totals %}<th class="right">{{ t | comma }}</th>{% endfor %}
-        <th class="right">↑ {{ ((totals[-1] - totals[0]) / totals[0] * 100) | round(1) }}%</th></tr>
-    </tfoot>
-  </table>
+  <h2>📋 월별 × 유형 기사 수</h2>
+  <div class="table-scroll">
+    <table class="table">
+      <thead>
+        <tr><th>유형</th>{% for m in months %}<th class="right">{{ m }}</th>{% endfor %}<th class="right">합계</th></tr>
+      </thead>
+      <tbody>
+        {% for r in month_rows %}
+        <tr>
+          <td><span class="dot" style="background: {{ r.color }}"></span>{{ r.name }}</td>
+          {% for v in r.data %}<td class="right">{{ v if v else '-' }}</td>{% endfor %}
+          <td class="right"><b>{{ r.data | sum }}</b></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr><th>합계</th>{% for t in month_totals %}<th class="right">{{ t }}</th>{% endfor %}<th class="right">{{ month_totals | sum }}</th></tr>
+      </tfoot>
+    </table>
+  </div>
 </section>
 {% endblock %}
 
 {% block scripts %}
+{% if series %}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script>
   const series = {{ series | tojson }};
   new Chart(document.getElementById('lineChart'), {
-    type: 'line',
+    type: 'bar',
     data: {
-      labels: {{ years | tojson }},
-      datasets: series.map(s => ({
-        label: s.name, data: s.data, borderColor: s.color, backgroundColor: s.color, tension: 0.25
-      }))
+      labels: {{ labels | tojson }},
+      datasets: series.map(s => ({ label: s.name, data: s.data, backgroundColor: s.color, stack: 'all' }))
     },
-    options: { interaction: { mode: 'index', intersect: false }, scales: { y: { beginAtZero: true } } }
+    options: {
+      interaction: { mode: 'index', intersect: false },
+      scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true, ticks: { precision: 0 } } }
+    }
   });
 </script>
+{% endif %}
 {% endblock %}

@@ -24,22 +24,30 @@
       </a>
       {% endfor %}
     </nav>
+    <div class="sidebar-foot">
+      <div>DB <code>{{ db_name }}</code></div>
+      <div>기사 {{ total_news | comma }}건</div>
+    </div>
   </aside>
 
   <main class="content">
     <header class="page-header">
       <div>
         <h1>사이버보안 통합 대시보드</h1>
-        <p class="subtitle">{% block subtitle %}최신 보안 뉴스와 경찰청 통계를 한눈에 확인하세요.{% endblock %}</p>
+        <p class="subtitle">{% block subtitle %}RSS로 수집한 최신 보안 뉴스를 한눈에 확인하세요.{% endblock %}</p>
       </div>
       <div class="header-right">
-        <span class="updated">마지막 업데이트 <span class="sep">|</span>
+        <span class="updated">최근 기사 <span class="sep">|</span>
           {% if last_updated %}{{ last_updated.strftime('%Y. %m. %d %H:%M') }}{% else %}-{% endif %}</span>
         <form method="post" action="{{ url_for('refresh') }}">
-          <button type="submit" class="btn-refresh">🔄 데이터 새로고침</button>
+          <button type="submit" class="btn-refresh" title="rss_.py 수집을 한 번 실행합니다">🔄 데이터 새로고침</button>
         </form>
       </div>
     </header>
+
+    {% if request.args.get('msg') %}
+    <div class="flash">{{ request.args.get('msg') }}</div>
+    {% endif %}
 
     <section class="cards">
       {% for c in cards %}
@@ -48,10 +56,11 @@
         <div>
           <div class="card-label">{{ c.name }}</div>
           <div class="card-count">{{ c.count | comma }}<small>건</small></div>
-          <div class="card-yoy {% if c.yoy is not none and c.yoy < 0 %}down{% else %}up{% endif %}">
-            {% if c.yoy is none %}-{% else %}{{ '↑' if c.yoy >= 0 else '↓' }} {{ c.yoy | abs }}%{% endif %}
+          <div class="card-yoy {% if c.change is not none and c.change < 0 %}down{% else %}up{% endif %}">
+            최근 7일 {{ c.recent }}건
+            {% if c.change is not none %}({{ '↑' if c.change >= 0 else '↓' }}{{ c.change | abs }}%){% endif %}
           </div>
-          <div class="card-year">({{ card_year }}년)</div>
+          <div class="card-year">전체 기간</div>
         </div>
       </a>
       {% endfor %}

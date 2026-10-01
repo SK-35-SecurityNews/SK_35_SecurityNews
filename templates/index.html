@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 {% block title %}홈{% endblock %}
-{% block subtitle %}MongoDB에 저장된 보안 뉴스·통계 데이터를 검색하고 색인으로 탐색하세요.{% endblock %}
+{% block subtitle %}MongoDB <code>{{ db_name }}.news</code>에 저장된 보안 뉴스를 검색하고 색인으로 탐색하세요.{% endblock %}
 
 {% block content %}
 <section class="panel search-panel">
-  <h2>🔎 데이터 검색</h2>
+  <h2>🔎 기사 검색</h2>
   <form method="get" action="{{ url_for('index') }}" class="search-form">
-    <input type="text" name="q" value="{{ q }}" placeholder="키워드 입력 (제목, 요약, 태그, 출처, 유형)" class="search-input" autofocus>
+    <input type="text" name="q" value="{{ q }}" placeholder="키워드 입력 (제목, 출처, 유형, 링크)" class="search-input" autofocus>
     <select name="category">
       <option value="">전체 유형</option>
       {% for f in facet_category %}
@@ -19,24 +19,22 @@
       <option value="{{ f.value }}" {% if source == f.value %}selected{% endif %}>{{ f.value }} ({{ f.count }})</option>
       {% endfor %}
     </select>
-    <select name="year">
-      <option value="">전체 연도</option>
-      {% for f in facet_year %}
-      <option value="{{ f.value }}" {% if year|string == f.value|string %}selected{% endif %}>{{ f.value }}년 ({{ f.count }})</option>
+    <select name="month">
+      <option value="">전체 기간</option>
+      {% for f in facet_month %}
+      <option value="{{ f.value }}" {% if month == f.value %}selected{% endif %}>{{ f.value }} ({{ f.count }})</option>
       {% endfor %}
     </select>
-    {% if tag %}<input type="hidden" name="tag" value="{{ tag }}">{% endif %}
     <button type="submit" class="btn-primary">검색</button>
     <a href="{{ url_for('index') }}" class="btn-secondary">초기화</a>
   </form>
-  {% if q or category or source or year or tag %}
+  {% if q or category or source or month %}
   <div class="active-filters">
     적용된 조건:
     {% if q %}<span class="chip">키워드: {{ q }}</span>{% endif %}
     {% if category %}<span class="chip">유형: {{ category }}</span>{% endif %}
     {% if source %}<span class="chip">출처: {{ source }}</span>{% endif %}
-    {% if year %}<span class="chip">연도: {{ year }}</span>{% endif %}
-    {% if tag %}<span class="chip">태그: #{{ tag }} <a href="{{ url_for('index', q=q, category=category, source=source, year=year) }}">✕</a></span>{% endif %}
+    {% if month %}<span class="chip">기간: {{ month }}</span>{% endif %}
   </div>
   {% endif %}
 </section>
@@ -45,29 +43,27 @@
   <section class="panel results-panel">
     <div class="panel-head">
       <h2>📄 검색 결과 <span class="muted">{{ total | comma }}건</span></h2>
-      <span class="muted">news 컬렉션 · 최신순</span>
+      <span class="muted">news 컬렉션 · 게시일 최신순</span>
     </div>
 
     {% if results %}
     <table class="table">
       <thead>
-        <tr><th>날짜</th><th>유형</th><th>제목 / 요약</th><th>출처</th><th>태그</th></tr>
+        <tr><th>게시일</th><th>유형</th><th>제목</th><th>출처</th></tr>
       </thead>
       <tbody>
         {% for r in results %}
+        {% set c = r.category | cat %}
         <tr>
-          <td class="nowrap">{{ r.date.strftime('%Y.%m.%d') }}</td>
-          <td><a class="badge" href="{{ url_for('index', category=r.category) }}">{{ r.category }}</a></td>
+          <td class="nowrap">{{ r | datefmt }}</td>
+          <td><a class="badge" href="{{ url_for('index', category=r.category) }}" style="background: {{ c.bg }}; color: {{ c.color }}">{{ c.icon }} {{ r.category }}</a></td>
           <td>
             <div class="result-title">
-              {% if r.url %}<a href="{{ r.url }}" target="_blank" rel="noopener" title="원본 기사 보기">{{ r.title }} ↗</a>{% else %}{{ r.title }}{% endif %}
+              <a href="{{ r.link }}" target="_blank" rel="noopener" title="원본 기사 보기">{{ r.title }} ↗</a>
             </div>
-            <div class="result-summary">{{ r.summary }}</div>
+            <div class="result-summary link-text">{{ r.link }}</div>
           </td>
           <td class="nowrap"><a href="{{ url_for('index', source=r.source) }}">{{ r.source }}</a></td>
-          <td class="tags">
-            {% for t in r.tags %}<a class="tag" href="{{ url_for('index', tag=t) }}">#{{ t }}</a>{% endfor %}
-          </td>
         </tr>
         {% endfor %}
       </tbody>
@@ -76,29 +72,13 @@
     {% if pages > 1 %}
     <div class="pagination">
       {% for p in range(1, pages + 1) %}
-      <a href="{{ url_for('index', q=q, category=category, source=source, year=year, tag=tag, page=p) }}"
+      <a href="{{ url_for('index', q=q, category=category, source=source, month=month, page=p) }}"
          class="{% if p == page %}active{% endif %}">{{ p }}</a>
       {% endfor %}
     </div>
     {% endif %}
     {% else %}
-    <p class="empty">조건에 맞는 데이터가 없습니다.</p>
-    {% endif %}
-
-    {% if stat_hits %}
-    <h3 class="sub-title">📊 통계 컬렉션 일치 항목 <span class="muted">{{ stat_hits | length }}건</span></h3>
-    <table class="table compact">
-      <thead><tr><th>연도</th><th>유형</th><th>발생건수</th><th>전년 대비</th><th>출처</th></tr></thead>
-      <tbody>
-        {% for s in stat_hits %}
-        <tr>
-          <td>{{ s.year }}</td><td>{{ s.category }}</td><td>{{ s.count | comma }}건</td>
-          <td>{% if s.yoy_change is none %}-{% else %}{{ s.yoy_change }}%{% endif %}</td>
-          <td>{{ s.source }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+    <p class="empty">조건에 맞는 기사가 없습니다.</p>
     {% endif %}
   </section>
 
@@ -107,7 +87,7 @@
       <h3>📚 색인 · 유형</h3>
       <ul class="index-list">
         {% for f in facet_category %}
-        <li><a href="{{ url_for('index', category=f.value) }}" class="{% if category == f.value %}active{% endif %}">{{ f.value }}</a><span class="count">{{ f.count }}</span></li>
+        <li><a href="{{ url_for('index', category=f.value) }}" class="{% if category == f.value %}active{% endif %}">{{ (f.value | cat).icon }} {{ f.value }}</a><span class="count">{{ f.count }}</span></li>
         {% endfor %}
       </ul>
     </section>
@@ -120,27 +100,17 @@
       </ul>
     </section>
     <section class="panel">
-      <h3>📅 색인 · 연도</h3>
+      <h3>📅 색인 · 월별</h3>
       <ul class="index-list">
-        {% for f in facet_year %}
-        <li><a href="{{ url_for('index', year=f.value) }}">{{ f.value }}년</a><span class="count">{{ f.count }}</span></li>
+        {% for f in facet_month %}
+        <li><a href="{{ url_for('index', month=f.value) }}" class="{% if month == f.value %}active{% endif %}">{{ f.value }}</a><span class="count">{{ f.count }}</span></li>
         {% endfor %}
       </ul>
     </section>
     <section class="panel">
-      <h3>🏷️ 색인 · 태그</h3>
-      <div class="tag-cloud">
-        {% for f in facet_tags %}
-        <a class="tag {% if tag == f.value %}active{% endif %}" href="{{ url_for('index', tag=f.value) }}">#{{ f.value }} <b>{{ f.count }}</b></a>
-        {% endfor %}
-      </div>
-    </section>
-    <section class="panel">
       <h3>🗄️ 컬렉션 현황</h3>
       <ul class="index-list">
-        {% for name, n in collection_counts.items() %}
-        <li><a href="{{ url_for('data', collection=name) }}">{{ name }}</a><span class="count">{{ n }}</span></li>
-        {% endfor %}
+        <li><a href="{{ url_for('data') }}">{{ db_name }}.news</a><span class="count">{{ total_news }}</span></li>
       </ul>
     </section>
   </aside>

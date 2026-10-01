@@ -1,32 +1,35 @@
 {% extends "base.html" %}
 {% block title %}데이터 원본{% endblock %}
-{% block subtitle %}MongoDB(cyberwatch) 컬렉션의 원본 문서를 그대로 확인합니다.{% endblock %}
+{% block subtitle %}MongoDB <code>{{ db_name }}</code> 컬렉션의 원본 문서를 그대로 확인합니다.{% endblock %}
 
 {% block content %}
 <section class="panel">
-  <h2>🌐 데이터 출처</h2>
+  <h2>🌐 수집 파이프라인</h2>
   <table class="table compact">
-    <thead><tr><th>출처</th><th>유형</th><th>갱신 주기</th><th>설명</th><th>URL</th></tr></thead>
+    <thead><tr><th>단계</th><th>내용</th></tr></thead>
     <tbody>
-      {% for s in sources %}
-      <tr>
-        <td>{{ s.name }}</td><td><span class="badge">{{ s.type }}</span></td><td>{{ s.update_cycle }}</td>
-        <td>{{ s.description }}</td><td><a href="{{ s.url }}" target="_blank" rel="noopener">{{ s.url }}</a></td>
-      </tr>
-      {% endfor %}
+      <tr><td>수집 스크립트</td><td><code>{{ rss_script }}</code> {% if rss_exists %}<span class="badge ok">발견됨</span>{% else %}<span class="badge warn">없음</span>{% endif %}</td></tr>
+      <tr><td>RSS 출처</td><td>ASEC (asec.ahnlab.com) · BleepingComputer · DailySecu</td></tr>
+      <tr><td>필터</td><td>보안 키워드 포함 기사만 저장, 채용·행사 등 제외 키워드 기사 제거</td></tr>
+      <tr><td>분류</td><td>제목+요약 키워드로 랜섬웨어 / 피싱·스미싱 / 악성코드 / 정보유출 / 취약점 / 해킹 / 기타 보안</td></tr>
+      <tr><td>중복 방지</td><td><code>link</code> 필드 unique index (DuplicateKeyError 로 건너뜀)</td></tr>
+      <tr><td>실행 주기</td><td>매일 09:00 / 21:00 (schedule) · 상단 새로고침 버튼으로 즉시 1회</td></tr>
     </tbody>
   </table>
 </section>
 
 <section class="panel">
   <div class="panel-head">
-    <h2>🗄️ 컬렉션: <code>{{ collection }}</code> <span class="muted">{{ counts[collection] }}건 (최대 100건 표시)</span></h2>
+    <h2>🗄️ 컬렉션: <code>{{ collection }}</code> <span class="muted">{{ counts[collection] }}건 (최신 100건 표시)</span></h2>
     <div class="filter-chips">
       {% for c in allowed %}
       <a href="{{ url_for('data', collection=c) }}" class="chip {% if c == collection %}active{% endif %}">{{ c }} ({{ counts[c] }})</a>
       {% endfor %}
     </div>
   </div>
+  <p class="muted">인덱스:
+    {% for ix in indexes %}<code>{{ ix.name }}</code>{% if ix.unique %} (unique){% endif %}{% if not loop.last %}, {% endif %}{% endfor %}
+  </p>
   <div class="table-scroll">
     <table class="table compact raw">
       <thead><tr>{% for col in columns %}<th>{{ col }}</th>{% endfor %}</tr></thead>
@@ -36,8 +39,9 @@
           {% for col in columns %}
           <td>
             {% set v = d.get(col) %}
-            {% if v is none %}<span class="muted">-</span>
-            {% elif v.__class__.__name__ == 'datetime' %}{{ v.strftime('%Y-%m-%d %H:%M') }}
+            {% if v is none %}<span class="muted">null</span>
+            {% elif v.__class__.__name__ == 'datetime' %}ISODate({{ v.isoformat() }})
+            {% elif col == 'link' %}<a href="{{ v }}" target="_blank" rel="noopener">{{ v }}</a>
             {% elif v is iterable and v is not string %}{{ v | tojson }}
             {% else %}{{ v }}{% endif %}
           </td>

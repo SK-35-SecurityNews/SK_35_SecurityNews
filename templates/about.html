@@ -6,24 +6,24 @@
 <div class="grid-two">
   <section class="panel">
     <h2>ℹ️ 프로젝트 소개</h2>
-    <p>CyberWatch는 보안 뉴스와 사이버범죄 통계를 MongoDB에 저장하고, 키워드·유형·출처·연도·태그 색인으로 검색할 수 있는 통합 대시보드입니다.</p>
+    <p>CyberWatch는 rss_.py가 RSS로 수집해 MongoDB에 저장한 보안 뉴스를 키워드·유형·출처·월별 색인으로 검색하고 통계로 보여주는 대시보드입니다.</p>
     <ul class="info-list">
       <li><b>백엔드</b> Flask (Python)</li>
       <li><b>데이터베이스</b> MongoDB {{ mongo_version }} · DB <code>{{ db_name }}</code></li>
       <li><b>컬렉션</b> {% for c in collections %}<code>{{ c }}</code> {% endfor %}</li>
-      <li><b>데이터</b> 예시 데이터 (seed.py로 적재, 실제 통계가 아님)</li>
+      <li><b>수집기</b> <code>{{ rss_script }}</code> {% if not rss_exists %}<span class="badge warn">경로 없음</span>{% endif %}</li>
     </ul>
   </section>
 
   <section class="panel">
     <h2>🧭 사용 방법</h2>
     <ul class="info-list">
-      <li><b>홈</b> 검색창에 키워드를 입력하거나 우측 색인(유형/출처/연도/태그)을 클릭해 데이터를 찾습니다.</li>
-      <li><b>보안 뉴스</b> news 컬렉션의 기사를 유형별로 조회합니다.</li>
-      <li><b>사이버범죄 통계</b> 연도를 선택해 유형별 발생건수와 비율을 확인합니다.</li>
-      <li><b>연도별 추이</b> 유형별 발생건수의 연도별 변화를 확인합니다.</li>
-      <li><b>데이터 원본</b> MongoDB 각 컬렉션의 원본 문서를 그대로 봅니다.</li>
-      <li><b>데이터 새로고침</b> 상단 버튼을 누르면 예시 데이터를 다시 적재합니다.</li>
+      <li><b>홈</b> 검색창에 키워드를 입력하거나 우측 색인(유형/출처/월별)을 클릭해 기사를 찾습니다.</li>
+      <li><b>보안 뉴스</b> 유형·출처별로 기사를 조회하고 제목을 눌러 원본으로 이동합니다.</li>
+      <li><b>사이버범죄 통계</b> 유형별 기사 수와 출처×유형 교차표를 봅니다.</li>
+      <li><b>기간별 추이</b> 최근 N일 동안 날짜별 기사 수를 유형별로 봅니다.</li>
+      <li><b>데이터 원본</b> MongoDB 문서를 그대로 봅니다.</li>
+      <li><b>데이터 새로고침</b> rss_.py의 수집 함수를 한 번 실행합니다.</li>
     </ul>
   </section>
 </div>
@@ -31,6 +31,18 @@
 <section class="panel">
   <h2>🔌 검색 API</h2>
   <p>JSON 형식으로도 검색할 수 있습니다.</p>
-  <pre><code>GET /api/search?q=랜섬웨어&amp;category=&amp;source=&amp;year=&amp;tag=</code></pre>
+  <pre><code>GET /api/search?q=랜섬웨어&amp;category=&amp;source=&amp;month=2026-09</code></pre>
+</section>
+
+<section class="panel">
+  <h2>📄 문서 구조 (news)</h2>
+  <pre><code>{
+  source:    "ASEC",                         // RSS 출처
+  category:  "기타 보안",                     // rss_.py get_category()
+  title:     "2026년 8월 다크웹 이슈 동향 보고서",
+  link:      "https://asec.ahnlab.com/ko/95388/",   // unique
+  published: "2026년 09월 13일 15시 00분",   // 표시용 문자열
+  sort_date: ISODate("2026-09-13T15:00:00Z") // 정렬·기간 필터용
+}</code></pre>
 </section>
 {% endblock %}
