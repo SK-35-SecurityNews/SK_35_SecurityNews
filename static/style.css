@@ -117,6 +117,7 @@ pre code { background: none; color: inherit; padding: 0; }
 .right { text-align: right !important; }
 .nowrap { white-space: nowrap; }
 .result-title { font-weight: 600; margin-bottom: 4px; }
+.result-title a:hover, .news-title a:hover { color: var(--primary); text-decoration: underline; }
 .result-summary { color: var(--muted); font-size: 13px; line-height: 1.5; }
 .badge { display: inline-block; background: #eef2f7; color: #334155; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
 .tags { max-width: 180px; }

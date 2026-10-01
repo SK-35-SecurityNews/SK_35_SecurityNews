@@ -59,7 +59,9 @@
           <td class="nowrap">{{ r.date.strftime('%Y.%m.%d') }}</td>
           <td><a class="badge" href="{{ url_for('index', category=r.category) }}">{{ r.category }}</a></td>
           <td>
-            <div class="result-title">{{ r.title }}</div>
+            <div class="result-title">
+              {% if r.url %}<a href="{{ r.url }}" target="_blank" rel="noopener" title="원본 기사 보기">{{ r.title }} ↗</a>{% else %}{{ r.title }}{% endif %}
+            </div>
             <div class="result-summary">{{ r.summary }}</div>
           </td>
           <td class="nowrap"><a href="{{ url_for('index', source=r.source) }}">{{ r.source }}</a></td>

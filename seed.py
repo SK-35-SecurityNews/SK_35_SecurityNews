@@ -95,6 +95,19 @@ SOURCES = [
 ]
 
 
+# 출처별 기사 원본 URL 패턴 (예시 데이터이므로 실제 기사와 일치하지 않음)
+ARTICLE_URL = {
+    "데일리시큐": "https://www.dailysecu.com/news/articleView.html?idxno={n}",
+    "보안뉴스": "https://www.boannews.com/media/view.asp?idx={n}",
+    "전자신문": "https://www.etnews.com/{ymd}{n}",
+}
+
+
+def article_url(source, date, n):
+    pattern = ARTICLE_URL.get(source, "https://example.com/news/{n}")
+    return pattern.format(n=165000 + n, ymd=date.replace("-", ""))
+
+
 def seed(client=None):
     client = client or MongoClient(MONGO_URI)
     db = client[DB_NAME]
@@ -123,7 +136,7 @@ def seed(client=None):
     db.stats.create_index([("year", ASCENDING), ("category_key", ASCENDING)], unique=True)
 
     news_docs = []
-    for category, title, source, date, summary, tags in NEWS:
+    for i, (category, title, source, date, summary, tags) in enumerate(NEWS, start=1):
         news_docs.append({
             "category": category,
             "title": title,
@@ -131,6 +144,7 @@ def seed(client=None):
             "date": datetime.strptime(date, "%Y-%m-%d"),
             "summary": summary,
             "tags": tags,
+            "url": article_url(source, date, i),
         })
     db.news.insert_many(news_docs)
     db.news.create_index([("date", DESCENDING)])
