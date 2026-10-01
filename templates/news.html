@@ -17,8 +17,12 @@
   <ul class="news-list">
     {% for n in items %}
     <li class="news-item">
-      <span class="badge">{{ n.category }}</span>
+      {% set c = icons.get(n.category) %}
+      <div class="news-thumb" style="background: {{ c.bg if c else '#f1f5f9' }}; color: {{ c.color if c else '#64748b' }}">
+        {{ c.icon if c else '🛡️' }}
+      </div>
       <div class="news-body">
+        <span class="badge">{{ n.category }}</span>
         <div class="news-title">
           {% if n.url %}<a href="{{ n.url }}" target="_blank" rel="noopener" title="원본 기사 보기">{{ n.title }} ↗</a>{% else %}{{ n.title }}{% endif %}
         </div>

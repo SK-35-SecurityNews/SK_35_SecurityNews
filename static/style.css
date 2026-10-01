@@ -140,6 +140,9 @@ pre code { background: none; color: inherit; padding: 0; }
 .news-list { list-style: none; margin: 0; padding: 0; }
 .news-item { display: flex; gap: 14px; padding: 16px 4px; border-bottom: 1px solid var(--border); }
 .news-item:last-child { border-bottom: none; }
+.news-thumb { flex: 0 0 90px; width: 90px; height: 80px; border-radius: 10px; border: 1px solid var(--border); display: grid; place-items: center; font-size: 36px; line-height: 1; }
+.news-body { min-width: 0; }
+.news-body .badge { margin-bottom: 6px; }
 .news-title { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
 .news-summary { color: var(--muted); line-height: 1.6; margin-bottom: 6px; }
 .news-meta { font-size: 13px; color: var(--muted); }

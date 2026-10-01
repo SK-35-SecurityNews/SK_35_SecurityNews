@@ -173,9 +173,11 @@ def news():
     total = db.news.count_documents(cond)
     items = list(db.news.find(cond).sort("date", DESCENDING)
                  .skip((page - 1) * per_page).limit(per_page))
+    # 유형 이름 → 카드와 같은 아이콘/색 (base.html 카드와 동일한 categories 컬렉션)
+    icons = {c["name"]: c for c in get_categories()}
     return render_template("news.html", items=items, category=category, total=total,
                            page=page, pages=ceil(total / per_page) if total else 1,
-                           categories=facet("category"))
+                           categories=facet("category"), icons=icons)
 
 
 # ---------- 사이버범죄 통계 ----------
