@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}데이터 원본{% endblock %}
+{% block subtitle %}MongoDB(cyberwatch) 컬렉션의 원본 문서를 그대로 확인합니다.{% endblock %}
+
+{% block content %}
+<section class="panel">
+  <h2>🌐 데이터 출처</h2>
+  <table class="table compact">
+    <thead><tr><th>출처</th><th>유형</th><th>갱신 주기</th><th>설명</th><th>URL</th></tr></thead>
+    <tbody>
+      {% for s in sources %}
+      <tr>
+        <td>{{ s.name }}</td><td><span class="badge">{{ s.type }}</span></td><td>{{ s.update_cycle }}</td>
+        <td>{{ s.description }}</td><td><a href="{{ s.url }}" target="_blank" rel="noopener">{{ s.url }}</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<section class="panel">
+  <div class="panel-head">
+    <h2>🗄️ 컬렉션: <code>{{ collection }}</code> <span class="muted">{{ counts[collection] }}건 (최대 100건 표시)</span></h2>
+    <div class="filter-chips">
+      {% for c in allowed %}
+      <a href="{{ url_for('data', collection=c) }}" class="chip {% if c == collection %}active{% endif %}">{{ c }} ({{ counts[c] }})</a>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="table-scroll">
+    <table class="table compact raw">
+      <thead><tr>{% for col in columns %}<th>{{ col }}</th>{% endfor %}</tr></thead>
+      <tbody>
+        {% for d in docs %}
+        <tr>
+          {% for col in columns %}
+          <td>
+            {% set v = d.get(col) %}
+            {% if v is none %}<span class="muted">-</span>
+            {% elif v.__class__.__name__ == 'datetime' %}{{ v.strftime('%Y-%m-%d %H:%M') }}
+            {% elif v is iterable and v is not string %}{{ v | tojson }}
+            {% else %}{{ v }}{% endif %}
+          </td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

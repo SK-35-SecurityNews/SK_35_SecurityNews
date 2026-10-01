@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}사이버범죄 통계{% endblock %}
+{% block subtitle %}경찰청 사이버범죄 유형별 발생건수 (stats 컬렉션).{% endblock %}
+
+{% block content %}
+<section class="panel">
+  <div class="panel-head">
+    <h2>📊 {{ year }}년 사이버범죄 발생건수 <span class="muted">총 {{ total | comma }}건</span></h2>
+    <div class="filter-chips">
+      {% for y in years %}
+      <a href="{{ url_for('stats', year=y) }}" class="chip {% if y == year %}active{% endif %}">{{ y }}년</a>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="grid-two">
+    <div>
+      <canvas id="barChart" height="260"></canvas>
+    </div>
+    <table class="table">
+      <thead><tr><th>유형</th><th class="right">발생건수</th><th class="right">비율</th><th class="right">전년 대비</th></tr></thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td><span class="dot" style="background: {{ r.color }}"></span>{{ r.category }}</td>
+          <td class="right">{{ r.count | comma }}건</td>
+          <td class="right">
+            <div class="bar-wrap"><div class="bar" style="width: {{ r.ratio }}%; background: {{ r.color }}"></div></div>{{ r.ratio }}%
+          </td>
+          <td class="right {% if r.yoy_change is not none and r.yoy_change < 0 %}down{% else %}up{% endif %}">
+            {% if r.yoy_change is none %}-{% else %}{{ '↑' if r.yoy_change >= 0 else '↓' }} {{ r.yoy_change | abs }}%{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot><tr><th>합계</th><th class="right">{{ total | comma }}건</th><th class="right">100%</th><th></th></tr></tfoot>
+    </table>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+  new Chart(document.getElementById('barChart'), {
+    type: 'bar',
+    data: {
+      labels: {{ rows | map(attribute='category') | list | tojson }},
+      datasets: [{
+        label: '발생건수',
+        data: {{ rows | map(attribute='count') | list | tojson }},
+        backgroundColor: {{ rows | map(attribute='color') | list | tojson }},
+        borderRadius: 4
+      }]
+    },
+    options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+  });
+</script>
+{% endblock %}

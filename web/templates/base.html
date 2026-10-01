@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}CyberWatch{% endblock %} - 사이버보안 통합 대시보드</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  {% block head %}{% endblock %}
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-icon">🛡️</div>
+      <div>
+        <div class="brand-name">CyberWatch</div>
+        <div class="brand-sub">사이버보안 통합 대시보드</div>
+      </div>
+    </div>
+    <nav>
+      {% for endpoint, label, icon in nav %}
+      <a href="{{ url_for(endpoint) }}" class="nav-item {% if request.endpoint == endpoint %}active{% endif %}">
+        <span class="nav-icon">{{ icon }}</span>{{ label }}
+      </a>
+      {% endfor %}
+    </nav>
+  </aside>
+
+  <main class="content">
+    <header class="page-header">
+      <div>
+        <h1>사이버보안 통합 대시보드</h1>
+        <p class="subtitle">{% block subtitle %}최신 보안 뉴스와 경찰청 통계를 한눈에 확인하세요.{% endblock %}</p>
+      </div>
+      <div class="header-right">
+        <span class="updated">마지막 업데이트 <span class="sep">|</span>
+          {% if last_updated %}{{ last_updated.strftime('%Y. %m. %d %H:%M') }}{% else %}-{% endif %}</span>
+        <form method="post" action="{{ url_for('refresh') }}">
+          <button type="submit" class="btn-refresh">🔄 데이터 새로고침</button>
+        </form>
+      </div>
+    </header>
+
+    <section class="cards">
+      {% for c in cards %}
+      <a class="card" href="{{ url_for('index', category=c.name) }}" style="background: {{ c.bg }}">
+        <div class="card-icon" style="color: {{ c.color }}">{{ c.icon }}</div>
+        <div>
+          <div class="card-label">{{ c.name }}</div>
+          <div class="card-count">{{ c.count | comma }}<small>건</small></div>
+          <div class="card-yoy {% if c.yoy is not none and c.yoy < 0 %}down{% else %}up{% endif %}">
+            {% if c.yoy is none %}-{% else %}{{ '↑' if c.yoy >= 0 else '↓' }} {{ c.yoy | abs }}%{% endif %}
+          </div>
+          <div class="card-year">({{ card_year }}년)</div>
+        </div>
+      </a>
+      {% endfor %}
+    </section>
+
+    {% block content %}{% endblock %}
+  </main>
+</div>
+{% block scripts %}{% endblock %}
+</body>
+</html>

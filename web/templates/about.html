@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}정보{% endblock %}
+{% block subtitle %}CyberWatch 프로젝트 및 시스템 정보입니다.{% endblock %}
+
+{% block content %}
+<div class="grid-two">
+  <section class="panel">
+    <h2>ℹ️ 프로젝트 소개</h2>
+    <p>CyberWatch는 보안 뉴스와 사이버범죄 통계를 MongoDB에 저장하고, 키워드·유형·출처·연도·태그 색인으로 검색할 수 있는 통합 대시보드입니다.</p>
+    <ul class="info-list">
+      <li><b>백엔드</b> Flask (Python)</li>
+      <li><b>데이터베이스</b> MongoDB {{ mongo_version }} · DB <code>{{ db_name }}</code></li>
+      <li><b>컬렉션</b> {% for c in collections %}<code>{{ c }}</code> {% endfor %}</li>
+      <li><b>데이터</b> 예시 데이터 (seed.py로 적재, 실제 통계가 아님)</li>
+    </ul>
+  </section>
+
+  <section class="panel">
+    <h2>🧭 사용 방법</h2>
+    <ul class="info-list">
+      <li><b>홈</b> 검색창에 키워드를 입력하거나 우측 색인(유형/출처/연도/태그)을 클릭해 데이터를 찾습니다.</li>
+      <li><b>보안 뉴스</b> news 컬렉션의 기사를 유형별로 조회합니다.</li>
+      <li><b>사이버범죄 통계</b> 연도를 선택해 유형별 발생건수와 비율을 확인합니다.</li>
+      <li><b>연도별 추이</b> 유형별 발생건수의 연도별 변화를 확인합니다.</li>
+      <li><b>데이터 원본</b> MongoDB 각 컬렉션의 원본 문서를 그대로 봅니다.</li>
+      <li><b>데이터 새로고침</b> 상단 버튼을 누르면 예시 데이터를 다시 적재합니다.</li>
+    </ul>
+  </section>
+</div>
+
+<section class="panel">
+  <h2>🔌 검색 API</h2>
+  <p>JSON 형식으로도 검색할 수 있습니다.</p>
+  <pre><code>GET /api/search?q=랜섬웨어&amp;category=&amp;source=&amp;year=&amp;tag=</code></pre>
+</section>
+{% endblock %}

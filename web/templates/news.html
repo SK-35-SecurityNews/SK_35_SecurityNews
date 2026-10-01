@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}보안 뉴스{% endblock %}
+{% block subtitle %}MongoDB news 컬렉션에 저장된 최신 보안 뉴스입니다.{% endblock %}
+
+{% block content %}
+<section class="panel">
+  <div class="panel-head">
+    <h2>📰 최신 보안 뉴스 <span class="muted">{{ total }}건</span></h2>
+    <div class="filter-chips">
+      <a href="{{ url_for('news') }}" class="chip {% if not category %}active{% endif %}">전체</a>
+      {% for f in categories %}
+      <a href="{{ url_for('news', category=f.value) }}" class="chip {% if category == f.value %}active{% endif %}">{{ f.value }} ({{ f.count }})</a>
+      {% endfor %}
+    </div>
+  </div>
+
+  <ul class="news-list">
+    {% for n in items %}
+    <li class="news-item">
+      <span class="badge">{{ n.category }}</span>
+      <div class="news-body">
+        <div class="news-title">{{ n.title }}</div>
+        <div class="news-summary">{{ n.summary }}</div>
+        <div class="news-meta">{{ n.source }} <span class="sep">|</span> {{ n.date.strftime('%Y. %m. %d') }}
+          {% for t in n.tags %}<a class="tag" href="{{ url_for('index', tag=t) }}">#{{ t }}</a>{% endfor %}
+        </div>
+      </div>
+    </li>
+    {% else %}
+    <li class="empty">뉴스가 없습니다.</li>
+    {% endfor %}
+  </ul>
+
+  {% if pages > 1 %}
+  <div class="pagination">
+    {% for p in range(1, pages + 1) %}
+    <a href="{{ url_for('news', category=category, page=p) }}" class="{% if p == page %}active{% endif %}">{{ p }}</a>
+    {% endfor %}
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

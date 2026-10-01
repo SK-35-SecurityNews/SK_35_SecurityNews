@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}연도별 추이{% endblock %}
+{% block subtitle %}{{ years[0] }}년부터 {{ years[-1] }}년까지 유형별 발생건수 추이 (stats 컬렉션).{% endblock %}
+
+{% block content %}
+<section class="panel">
+  <h2>📈 연도별 추이 (전체 유형)</h2>
+  <canvas id="lineChart" height="110"></canvas>
+</section>
+
+<section class="panel">
+  <h2>📋 연도별 발생건수 표</h2>
+  <table class="table">
+    <thead>
+      <tr><th>유형</th>{% for y in years %}<th class="right">{{ y }}</th>{% endfor %}<th class="right">누적 증가율</th></tr>
+    </thead>
+    <tbody>
+      {% for s in series %}
+      <tr>
+        <td><span class="dot" style="background: {{ s.color }}"></span>{{ s.name }}</td>
+        {% for v in s.data %}<td class="right">{{ v | comma }}</td>{% endfor %}
+        <td class="right up">{% if s.data[0] %}↑ {{ ((s.data[-1] - s.data[0]) / s.data[0] * 100) | round(1) }}%{% else %}-{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr><th>합계</th>{% for t in totals %}<th class="right">{{ t | comma }}</th>{% endfor %}
+        <th class="right">↑ {{ ((totals[-1] - totals[0]) / totals[0] * 100) | round(1) }}%</th></tr>
+    </tfoot>
+  </table>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+  const series = {{ series | tojson }};
+  new Chart(document.getElementById('lineChart'), {
+    type: 'line',
+    data: {
+      labels: {{ years | tojson }},
+      datasets: series.map(s => ({
+        label: s.name, data: s.data, borderColor: s.color, backgroundColor: s.color, tension: 0.25
+      }))
+    },
+    options: { interaction: { mode: 'index', intersect: false }, scales: { y: { beginAtZero: true } } }
+  });
+</script>
+{% endblock %}
