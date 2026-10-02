@@ -11,8 +11,8 @@ venv\Scripts\activate
 # 2) 패키지 설치 (최초 1회)
 pip install -r requirements.txt
 
-# 3) MongoDB 예시 데이터 적재 (최초 1회, 또는 초기화할 때)
-python seed.py
+# 3) 데이터 수집 및 가공, MongoDB 저장
+python rss_.py
 
 # 4) 서버 실행
 python app.py
@@ -26,7 +26,7 @@ DB가 비어 있으면 첫 접속 시 자동으로 예시 데이터가 적재됩
 | 파일 | 설명 |
 | --- | --- |
 | `app.py` | Flask 라우트 (홈/검색, 보안 뉴스, 통계, 추이, 데이터 원본, 정보, 검색 API) |
-| `seed.py` | MongoDB `cyberwatch` DB에 예시 데이터 적재 |
+| `rss_.py` | 데이터 수집 및 가공 이후 MongoDB `cyberwatch` DB에 데이터 적재 |
 | `templates/` | Jinja2 템플릿 (`base.html` 공통 레이아웃) |
 | `static/style.css` | 스타일 |
 
