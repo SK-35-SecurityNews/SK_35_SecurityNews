@@ -25,7 +25,6 @@
       {% endfor %}
     </nav>
     <div class="sidebar-foot">
-      <div>DB <code>{{ db_name }}</code></div>
       <div>기사 {{ total_news | comma }}건</div>
     </div>
   </aside>
@@ -34,7 +33,6 @@
     <header class="page-header">
       <div>
         <h1>사이버보안 통합 대시보드</h1>
-        <p class="subtitle">{% block subtitle %}RSS로 수집한 최신 보안 뉴스를 한눈에 확인하세요.{% endblock %}</p>
       </div>
       <div class="header-right">
         <span class="updated">최근 기사 <span class="sep">|</span>
