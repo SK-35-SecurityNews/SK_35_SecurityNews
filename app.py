@@ -2,18 +2,8 @@
 """
 CyberWatch - 사이버보안 통합 대시보드 (Flask + MongoDB)
 
-데이터는 rss_.py 가 수집해 MongoDB 에 저장한 cybercrime_db.news 컬렉션을 그대로 사용한다.
-문서 구조:
-  {
-    source:    'ASEC' | 'BleepingComputer' | 'DailySecu',
-    category:  '랜섬웨어' | '피싱/스미싱' | '악성코드' | '정보유출' | '취약점' | '해킹' | '기타 보안',
-    title:     기사 제목,
-    link:      기사 원본 URL (unique index),
-    published: '2026년 09월 13일 15시 00분'  (표시용 문자열),
-    sort_date: ISODate (정렬·기간 필터용, 없을 수 있음)
-  }
-
-실행: venv\Scripts\python.exe app.py
+cybercrime_db.news         : rss_.py 가 수집한 보안 뉴스
+cybercrime_db.police_stats : police_api.py 가 저장한 경찰청 연도별 통계
 """
 import contextlib
 import io
@@ -22,27 +12,28 @@ import re
 from datetime import datetime, timedelta
 from math import ceil
 
-from flask import Flask, render_template, request, redirect, url_for, jsonify
-from pymongo import MongoClient, DESCENDING, ASCENDING
+from dotenv import load_dotenv
+from flask import Flask, jsonify, redirect, render_template, request, url_for
+from pymongo import ASCENDING, DESCENDING, MongoClient
+
+load_dotenv()
 
 # ---------- 설정 ----------
-MONGO_URI = "mongodb://localhost:27017/"
-DB_NAME = "cybercrime_db"          # rss_.py 의 DB_NAME
-COLLECTION_NAME = "news"           # rss_.py 의 COLLECTION_NAME
+MONGO_URI = os.environ.get("MONGO_URI", "mongodb://localhost:27017/")
+DB_NAME = "cybercrime_db"
+COLLECTION_NAME = "news"
+POLICE_COLLECTION = "police_stats"
 
-# 데이터 새로고침 버튼이 호출할 수집 스크립트 (rss_.py). 없으면 버튼은 안내만 표시한다.
 RSS_SCRIPT = os.environ.get(
     "RSS_SCRIPT", r"C:\Users\taehyi\OneDrive\문서\github\SK_35_SecurityNews\rss_.py")
 
-# flask 웹 애플리케이션 객체를 생성하고 app 변수에 저장
 app = Flask(__name__)
 
-# mongodb 연동
 client = MongoClient(MONGO_URI)
 db = client[DB_NAME]
 news_col = db[COLLECTION_NAME]
+police_col = db[POLICE_COLLECTION]
 
-# rss_.py 의 get_category() 가 반환하는 유형 목록 (상단 카드 순서·아이콘·색)
 CATEGORIES = [
     {"key": "ransomware", "name": "랜섬웨어",   "icon": "🔒", "color": "#ef4444", "bg": "#fef2f2"},
     {"key": "phishing",   "name": "피싱/스미싱", "icon": "✉️", "color": "#3b82f6", "bg": "#eff6ff"},
@@ -54,6 +45,27 @@ CATEGORIES = [
 ]
 CATEGORY_BY_NAME = {c["name"]: c for c in CATEGORIES}
 
+# 경찰청 통계 : (표시 이름, API 필드명)
+POLICE_FIELDS = [
+    ("랜섬웨어", "악성프로그램_랜섬웨어"),
+    ("피싱", "사이버금융범죄_피싱"),
+    ("스미싱", "정보탈취연계형범죄_스미싱"),
+    ("개인정보 유출", "해킹_자료유출"),
+    ("DDoS", "서비스거부공격"),
+    ("악성코드", "악성프로그램_기타"),
+    ("계정 탈취", "해킹_계정도용"),
+]
+
+POLICE_STYLE = {
+    "랜섬웨어": ("🔒", "#ef4444", "#fef2f2"),
+    "피싱": ("✉️", "#3b82f6", "#eff6ff"),
+    "스미싱": ("📱", "#06b6d4", "#ecfeff"),
+    "개인정보 유출": ("👤", "#eab308", "#fefce8"),
+    "DDoS": ("🌐", "#22c55e", "#f0fdf4"),
+    "악성코드": ("🐞", "#f97316", "#fff7ed"),
+    "계정 탈취": ("🔑", "#a855f7", "#faf5ff"),
+}
+
 NAV = [
     ("index", "홈", "🏠"),
     ("news", "보안 뉴스", "📰"),
@@ -63,34 +75,66 @@ NAV = [
     ("about", "정보", "ℹ️"),
 ]
 
+SORT = [("sort_date", DESCENDING), ("_id", DESCENDING)]
+PER_PAGE = 10
+
 
 # ---------- 공통 헬퍼 ----------
 def category_info(name):
-    """유형 이름 → 아이콘/색. 목록에 없는 유형은 기본값."""
     return CATEGORY_BY_NAME.get(name, {"name": name, "icon": "📰", "color": "#64748b", "bg": "#f1f5f9"})
 
 
+def to_int(value):
+    """'1,234' 같은 문자열도 정수로 변환, 실패하면 0"""
+    try:
+        return int(str(value).replace(",", ""))
+    except (TypeError, ValueError):
+        return 0
+
+
+def get_page():
+    try:
+        return max(int(request.args.get("page", 1)), 1)
+    except ValueError:
+        return 1
+
+
+def total_pages(total):
+    return ceil(total / PER_PAGE) if total else 1
+
+
 def latest_collected():
-    """가장 최근 기사의 게시 시각 (= 마지막 수집 기준)"""
     doc = news_col.find_one({"sort_date": {"$ne": None}}, sort=[("sort_date", DESCENDING)])
     return doc["sort_date"] if doc else None
 
 
 def summary_cards():
-    """상단 카드: 유형별 전체 기사 수와 최근 7일 / 이전 7일 비교"""
-    now = datetime.now()
-    week = now - timedelta(days=7)
-    two_weeks = now - timedelta(days=14)
+    """상단 카드: 경찰청 최신 연도 발생건수와 전년 대비 증감률"""
+    docs = list(police_col.find({"구분": "발생건수"}, {"_id": 0}).sort("연도", DESCENDING).limit(2))
+    if not docs:
+        return []
+    latest, prev = docs[0], (docs[1] if len(docs) > 1 else None)
+
     cards = []
-    for cat in CATEGORIES:
-        total = news_col.count_documents({"category": cat["name"]})
-        recent = news_col.count_documents({"category": cat["name"], "sort_date": {"$gte": week}})
-        prev = news_col.count_documents({"category": cat["name"],
-                                         "sort_date": {"$gte": two_weeks, "$lt": week}})
-        change = None if prev == 0 else round((recent - prev) / prev * 100, 1)
-        cards.append({**cat, "count": total, "recent": recent, "prev": prev, "change": change})
+    for label, key in POLICE_FIELDS:
+        icon, color, bg = POLICE_STYLE[label]
+        count = to_int(latest.get(key))
+        before = to_int(prev.get(key)) if prev else 0
+        change = round((count - before) / before * 100, 1) if before else None
+        cards.append({"name": label, "icon": icon, "color": color, "bg": bg,
+                      "count": count, "year": latest.get("연도"),
+                      "prev_year": prev.get("연도") if prev else None, "change": change})
     return cards
 
+def police_latest():
+    """가장 최근 연도의 경찰청 발생건수 (유형명 → 건수)"""
+    doc = police_col.find_one({"구분": "발생건수"}, {"_id": 0}, sort=[("연도", DESCENDING)])
+    if not doc:
+        return None
+    return {
+        "year": doc.get("연도"),
+        "items": [{"name": label, "count": to_int(doc.get(key))} for label, key in POLICE_FIELDS],
+    }
 
 @app.context_processor
 def inject_globals():
@@ -100,8 +144,9 @@ def inject_globals():
         "cards": summary_cards(),
         "total_news": news_col.estimated_document_count(),
         "db_name": DB_NAME,
+        "POLICE_STYLE": POLICE_STYLE,
+        "police_total": police_col.estimated_document_count(),
     }
-
 
 @app.template_filter("comma")
 def comma(n):
@@ -113,7 +158,6 @@ def comma(n):
 
 @app.template_filter("datefmt")
 def datefmt(doc, fmt="%Y.%m.%d %H:%M"):
-    """sort_date 가 있으면 포맷, 없으면 published 문자열 그대로"""
     d = doc.get("sort_date")
     return d.strftime(fmt) if d else doc.get("published", "-")
 
@@ -123,20 +167,18 @@ def cat_filter(name):
     return category_info(name)
 
 
-# ---------- 검색 조건 / 색인 집계 ----------
+# ---------- 검색 조건 / 집계 ----------
 def month_range(ym):
     """'2026-09' → (9월 1일, 10월 1일)"""
-    y, m = (int(x) for x in ym.split("-"))
-    start = datetime(y, m, 1)
-    end = datetime(y + (m // 12), (m % 12) + 1, 1)
-    return start, end
+    y, m = map(int, ym.split("-"))
+    return datetime(y, m, 1), datetime(y + m // 12, m % 12 + 1, 1)
 
 
 def build_query(q, category, source, month):
     cond = {}
     if q:
         rx = {"$regex": re.escape(q), "$options": "i"}
-        cond["$or"] = [{"title": rx}, {"source": rx}, {"category": rx}, {"link": rx}]
+        cond["$or"] = [{f: rx} for f in ("title", "source", "category", "link")]
     if category:
         cond["category"] = category
     if source:
@@ -148,7 +190,6 @@ def build_query(q, category, source, month):
         except ValueError:
             pass
     return cond
-
 
 def facet(field):
     """필드별 건수 집계. field = 'category' | 'source' | 'month'"""
@@ -167,43 +208,40 @@ def facet(field):
     return [{"value": d["_id"], "count": d["n"]} for d in news_col.aggregate(pipeline) if d["_id"]]
 
 
-SORT = [("sort_date", DESCENDING), ("_id", DESCENDING)]
-
-
-# ---------- 홈: 색인/검색 ----------
+# ---------- 홈 ----------
 @app.route("/")
 def index():
     q = request.args.get("q", "").strip()
     category = request.args.get("category", "")
     source = request.args.get("source", "")
     month = request.args.get("month", "")
-    page = max(int(request.args.get("page", 1)), 1)
-    per_page = 10
+    page = get_page()
 
     cond = build_query(q, category, source, month)
     total = news_col.count_documents(cond)
-    results = list(news_col.find(cond).sort(SORT).skip((page - 1) * per_page).limit(per_page))
+    results = list(news_col.find(cond).sort(SORT).skip((page - 1) * PER_PAGE).limit(PER_PAGE))
+
+    # 색인 · 유형: 대시보드 카드(경찰청 분류)의 값
+    latest = police_col.find_one({"구분": "발생건수"}, {"_id": 0}, sort=[("연도", DESCENDING)]) or {}
+    facet_police = [{"value": label, "count": to_int(latest.get(key)), "year": latest.get("연도")}
+                    for label, key in POLICE_FIELDS]
 
     return render_template(
-        "index.html",
-        q=q, category=category, source=source, month=month,
-        results=results, total=total, page=page, pages=ceil(total / per_page) if total else 1,
-        facet_category=facet("category"),
-        facet_source=facet("source"),
-        facet_month=facet("month"),
+        "index.html", q=q, category=category, source=source, month=month,
+        results=results, total=total, page=page, pages=total_pages(total),
+        facet_category=facet("category"), facet_source=facet("source"), facet_month=facet("month"),
+        facet_police=facet_police,
     )
-
 
 @app.route("/api/search")
 def api_search():
-    """검색 API (JSON)"""
     cond = build_query(request.args.get("q", "").strip(), request.args.get("category", ""),
                        request.args.get("source", ""), request.args.get("month", ""))
-    docs = []
-    for d in news_col.find(cond).sort(SORT).limit(50):
-        d["_id"] = str(d["_id"])
-        d["sort_date"] = d["sort_date"].isoformat() if d.get("sort_date") else None
-        docs.append(d)
+    docs = [
+        {**d, "_id": str(d["_id"]),
+         "sort_date": d["sort_date"].isoformat() if d.get("sort_date") else None}
+        for d in news_col.find(cond).sort(SORT).limit(50)
+    ]
     return jsonify({"total": len(docs), "results": docs})
 
 
@@ -212,29 +250,28 @@ def api_search():
 def news():
     category = request.args.get("category", "")
     source = request.args.get("source", "")
-    page = max(int(request.args.get("page", 1)), 1)
-    per_page = 10
-    cond = {}
-    if category:
-        cond["category"] = category
-    if source:
-        cond["source"] = source
+    page = get_page()
+
+    cond = {k: v for k, v in (("category", category), ("source", source)) if v}
     total = news_col.count_documents(cond)
-    items = list(news_col.find(cond).sort(SORT).skip((page - 1) * per_page).limit(per_page))
+    items = list(news_col.find(cond).sort(SORT).skip((page - 1) * PER_PAGE).limit(PER_PAGE))
     return render_template("news.html", items=items, category=category, source=source, total=total,
-                           page=page, pages=ceil(total / per_page) if total else 1,
+                           page=page, pages=total_pages(total),
                            categories=facet("category"), sources=facet("source"))
 
 
-# ---------- 사이버범죄 통계 (유형별 · 출처별) ----------
+# ---------- 사이버범죄 통계 (뉴스 집계 + 경찰청 통계) ----------
 @app.route("/stats")
 def stats():
     total = news_col.estimated_document_count()
-    rows = []
-    for f in facet("category"):
-        info = category_info(f["value"])
-        rows.append({"name": f["value"], "count": f["count"], "color": info["color"], "icon": info["icon"],
-                     "ratio": round(f["count"] / total * 100, 1) if total else 0})
+
+    # 뉴스 유형별 집계
+    rows = [
+        {"name": f["value"], "count": f["count"],
+         "color": category_info(f["value"])["color"], "icon": category_info(f["value"])["icon"],
+         "ratio": round(f["count"] / total * 100, 1) if total else 0}
+        for f in facet("category")
+    ]
 
     # 출처 × 유형 교차표
     pivot = {}
@@ -243,10 +280,21 @@ def stats():
     cat_names = [r["name"] for r in rows]
     source_rows = [{"source": s, "counts": [pivot[s].get(c, 0) for c in cat_names],
                     "total": sum(pivot[s].values())} for s in sorted(pivot)]
-    return render_template("stats.html", rows=rows, total=total, cat_names=cat_names, source_rows=source_rows)
+
+    # 경찰청 연도별 발생건수
+    police_docs = list(police_col.find({"구분": "발생건수"}, {"_id": 0}).sort("연도", ASCENDING))
+    police_years = [d.get("연도") for d in police_docs]
+    police_rows = [
+        {"name": label, "data": [to_int(d.get(key)) for d in police_docs]}
+        for label, key in POLICE_FIELDS
+    ]
+
+    return render_template("stats.html", rows=rows, total=total, cat_names=cat_names,
+                           source_rows=source_rows, police_years=police_years,
+                           police_rows=police_rows)
 
 
-# ---------- 기간별 추이 ----------
+# ---------- 기간별 추이 ----------dd
 @app.route("/trend")
 def trend():
     days = int(request.args.get("days", 30))
@@ -261,14 +309,13 @@ def trend():
     ]):
         counts.setdefault(d["_id"]["cat"], {})[d["_id"]["day"]] = d["n"]
 
-    series = []
-    for cat in CATEGORIES:
-        data = [counts.get(cat["name"], {}).get(day, 0) for day in labels]
-        if any(data):
-            series.append({"name": cat["name"], "color": cat["color"], "data": data, "total": sum(data)})
+    series = [
+        {"name": c["name"], "color": c["color"], "data": data, "total": sum(data)}
+        for c in CATEGORIES
+        if any(data := [counts.get(c["name"], {}).get(day, 0) for day in labels])
+    ]
     totals = [sum(s["data"][i] for s in series) for i in range(days)]
 
-    # 월별 × 유형 표
     monthly = {}
     for d in news_col.aggregate([
         {"$match": {"sort_date": {"$ne": None}}},
@@ -277,9 +324,11 @@ def trend():
     ]):
         monthly.setdefault(d["_id"]["m"], {})[d["_id"]["cat"]] = d["n"]
     months = sorted(monthly)
-    month_rows = [{"name": c["name"], "color": c["color"],
-                   "data": [monthly[m].get(c["name"], 0) for m in months]} for c in CATEGORIES]
-    month_rows = [r for r in month_rows if any(r["data"])]
+    month_rows = [
+        {"name": c["name"], "color": c["color"], "data": data}
+        for c in CATEGORIES
+        if any(data := [monthly[m].get(c["name"], 0) for m in months])
+    ]
     month_totals = [sum(monthly[m].values()) for m in months]
 
     return render_template("trend.html", days=days, labels=labels, series=series, totals=totals,
@@ -293,15 +342,9 @@ def data():
     collection = request.args.get("collection", COLLECTION_NAME)
     if collection not in allowed:
         collection = allowed[0]
-    docs = []
-    for d in db[collection].find().sort("_id", DESCENDING).limit(100):
-        d["_id"] = str(d["_id"])
-        docs.append(d)
-    columns = []
-    for d in docs:
-        for k in d:
-            if k not in columns:
-                columns.append(k)
+
+    docs = [{**d, "_id": str(d["_id"])} for d in db[collection].find().sort("_id", DESCENDING).limit(100)]
+    columns = list(dict.fromkeys(k for d in docs for k in d))  # 순서 유지 + 중복 제거
     counts = {c: db[c].estimated_document_count() for c in allowed}
     indexes = [{"name": k, "keys": v["key"], "unique": v.get("unique", False)}
                for k, v in db[collection].index_information().items()]
@@ -313,21 +356,20 @@ def data():
 # ---------- 정보 ----------
 @app.route("/about")
 def about():
-    info = client.server_info()
-    return render_template("about.html", mongo_version=info.get("version"),
+    return render_template("about.html", mongo_version=client.server_info().get("version"),
                            collections=db.list_collection_names(),
                            rss_script=RSS_SCRIPT, rss_exists=os.path.exists(RSS_SCRIPT))
 
 
-# ---------- 데이터 새로고침: rss_.py 의 collect_and_save() 를 한 번 실행 ----------
+# ---------- 데이터 새로고침 ----------
 def run_rss_collect():
-    """rss_.py 를 불러와 수집 함수만 실행한다. (스케줄 대기 루프 부분은 제외)"""
-    src = io.open(RSS_SCRIPT, encoding="utf-8").read()
-    src = src.split("# 7. 자동 실행 일정 설정")[0]
+    """rss_.py 의 수집 함수만 한 번 실행한다. (스케줄 대기 루프는 제외)"""
+    with open(RSS_SCRIPT, encoding="utf-8") as f:
+        src = f.read().split("# 7. 자동 실행 일정 설정")[0]
+
     ns = {"__name__": "rss_collect"}
     before = news_col.estimated_document_count()
-    # rss_.py 의 print() 출력은 콘솔(cp949)로 보내지 않고 버퍼에 담는다 (인코딩 오류 방지)
-    with contextlib.redirect_stdout(io.StringIO()):
+    with contextlib.redirect_stdout(io.StringIO()):  # cp949 콘솔 인코딩 오류 방지
         exec(compile(src, RSS_SCRIPT, "exec"), ns)
         ns["collect_and_save"]()
     return news_col.estimated_document_count() - before
@@ -339,15 +381,25 @@ def refresh():
         msg = "rss_.py 를 찾을 수 없습니다. 환경변수 RSS_SCRIPT 로 경로를 지정하세요."
     else:
         try:
-            added = run_rss_collect()
-            msg = f"RSS 수집 완료: 새 기사 {added}건 추가"
-        except Exception as e:  # 수집 실패해도 화면은 계속 동작
+            msg = f"RSS 수집 완료: 새 기사 {run_rss_collect()}건 추가"
+        except Exception as e:
             msg = f"RSS 수집 실패: {e}"
     target = request.referrer or url_for("index")
-    sep = "&" if "?" in target else "?"
-    return redirect(f"{target}{sep}msg={msg}")
+    return redirect(f"{target}{'&' if '?' in target else '?'}msg={msg}")
 
+@app.route("/debug/police")
+def debug_police():
+    sample = police_col.find_one({"구분": "발생건수"}, {"_id": 0})
+    return jsonify({
+        "db": DB_NAME,
+        "collection": POLICE_COLLECTION,
+        "total_docs": police_col.count_documents({}),
+        "발생건수_docs": police_col.count_documents({"구분": "발생건수"}),
+        "구분_values": police_col.distinct("구분"),
+        "sample_연도": sample.get("연도") if sample else None,
+        "stats_template_file": app.jinja_env.get_or_select_template("stats.html").filename,
+        "app_folder": app.root_path,
+    })
 
-# 개발시 python 실행가능하도록
 if __name__ == "__main__":
     app.run(debug=True)

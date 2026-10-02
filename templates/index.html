@@ -77,7 +77,7 @@
     </div>
     {% endif %}
     {% else %}
-    <p class="empty">조건에 맞는 기사가 없습니다.</p>
+    <p class="empty">❌ 조건에 맞는 기사가 없습니다.</p>
     {% endif %}
   </section>
 
@@ -85,8 +85,9 @@
     <section class="panel">
       <h3>📚 색인 · 유형</h3>
       <ul class="index-list">
-        {% for f in facet_category %}
-        <li><a href="{{ url_for('index', category=f.value) }}" class="{% if category == f.value %}active{% endif %}">{{ (f.value | cat).icon }} {{ f.value }}</a><span class="count">{{ f.count }}</span></li>
+        {% for f in facet_police %}
+        {% set c = POLICE_STYLE[f.value] %}
+        <li><a href="{{ url_for('index', q=f.value) }}" class="{% if q == f.value %}active{% endif %}">{{ c[0] }} {{ f.value }}</a><span class="count">{{ f.count | comma }}</span></li>
         {% endfor %}
       </ul>
     </section>
@@ -110,6 +111,7 @@
       <h3>🗄️ 컬렉션 현황</h3>
       <ul class="index-list">
         <li><a href="{{ url_for('data') }}">{{ db_name }}.news</a><span class="count">{{ total_news }}</span></li>
+        <li><a href="{{ url_for('data', collection='police_stats') }}">{{ db_name }}.police_stats</a><span class="count">{{ police_total }}</span></li>
       </ul>
     </section>
   </aside>

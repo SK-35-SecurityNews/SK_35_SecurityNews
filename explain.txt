@@ -1,3 +1,4 @@
+ 설명
  1. 구조
  Github
  - static/ : css, png 등 스타일 관련

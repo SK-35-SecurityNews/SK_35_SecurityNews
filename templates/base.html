@@ -13,8 +13,8 @@
     <div class="brand">
       <div class="brand-icon">🛡️</div>
       <div>
-        <div class="brand-name">CyberWatch</div>
-        <div class="brand-sub">사이버보안 통합 대시보드</div>
+        <div class="brand-name">CyberCrime</div>
+        <div class="brand-sub">Shieldus 35th python5</div>
       </div>
     </div>
     <nav>
@@ -32,7 +32,7 @@
   <main class="content">
     <header class="page-header">
       <div>
-        <h1>사이버보안 통합 대시보드</h1>
+        <h1>🚨 사이버범죄 KEY-WORD 🚨</h1>
       </div>
       <div class="header-right">
         <span class="updated">최근 기사 <span class="sep">|</span>
@@ -49,16 +49,15 @@
 
     <section class="cards">
       {% for c in cards %}
-      <a class="card" href="{{ url_for('index', category=c.name) }}" style="background: {{ c.bg }}">
+      <a class="card" href="{{ url_for('stats') }}" style="background: {{ c.bg }}">
         <div class="card-icon" style="color: {{ c.color }}">{{ c.icon }}</div>
         <div>
           <div class="card-label">{{ c.name }}</div>
           <div class="card-count">{{ c.count | comma }}<small>건</small></div>
           <div class="card-yoy {% if c.change is not none and c.change < 0 %}down{% else %}up{% endif %}">
-            최근 7일 {{ c.recent }}건
-            {% if c.change is not none %}({{ '↑' if c.change >= 0 else '↓' }}{{ c.change | abs }}%){% endif %}
+            {% if c.change is not none %}전년 대비 {{ '↑' if c.change >= 0 else '↓' }}{{ c.change | abs }}%{% else %}전년 비교 없음{% endif %}
           </div>
-          <div class="card-year">전체 기간</div>
+          <div class="card-year">{{ c.year }}년 발생건수</div>
         </div>
       </a>
       {% endfor %}

@@ -1,4 +1,4 @@
-# CyberWatch - 사이버보안 통합 대시보드
+# CyberCrime - 사이버보안 통합 대시보드
 
 Flask + MongoDB 기반의 보안 뉴스·사이버범죄 통계 검색 대시보드입니다.
 

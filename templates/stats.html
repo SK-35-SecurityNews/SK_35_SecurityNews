@@ -4,7 +4,38 @@
 {% block content %}
 <section class="panel">
   <div class="panel-head">
-    <h2>📊 유형별 기사 수 <span class="muted">총 {{ total | comma }}건</span></h2>
+    <h2>🚨 경찰청 연도별 사이버범죄 발생건수</h2>
+    <span class="muted">컬렉션 <code>police_stats</code></span>
+  </div>
+
+  {% if police_years %}
+  <canvas id="policeChart" height="110"></canvas>
+  <div class="table-scroll">
+    <table class="table compact">
+      <thead>
+        <tr><th>유형</th>{% for y in police_years %}<th class="right">{{ y }}년</th>{% endfor %}</tr>
+      </thead>
+      <tbody>
+        {% for r in police_rows %}
+        <tr>
+          <td>{{ r.name }}</td>
+          {% for v in r.data %}<td class="right">{{ v | comma }}</td>{% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="empty">
+    경찰청 통계가 없습니다. <code>python police_api.py</code> 를 실행한 뒤,
+    <a href="{{ url_for('data', collection='police_stats') }}">데이터 원본</a>에서 저장 여부를 확인하세요.
+  </p>
+  {% endif %}
+</section>
+
+<section class="panel">
+  <div class="panel-head">
+    <h2>📊 유형별 기사 수 📊<span class="muted">총 {{ total | comma }}건</span></h2>
   </div>
 
   <div class="grid-two">
@@ -56,6 +87,28 @@
 {% block scripts %}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script>
+  const palette = ['#ef4444', '#3b82f6', '#f97316', '#eab308', '#22c55e', '#a855f7', '#06b6d4'];
+
+  {% if police_years %}
+  const policeRows = {{ police_rows | tojson }};
+  new Chart(document.getElementById('policeChart'), {
+    type: 'line',
+    data: {
+      labels: {{ police_years | map('string') | list | tojson }},
+      datasets: policeRows.map((r, i) => ({
+        label: r.name, data: r.data,
+        borderColor: palette[i % palette.length],
+        backgroundColor: palette[i % palette.length],
+        tension: 0.25
+      }))
+    },
+    options: {
+      interaction: { mode: 'index', intersect: false },
+      scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+    }
+  });
+  {% endif %}
+
   new Chart(document.getElementById('barChart'), {
     type: 'bar',
     data: {
